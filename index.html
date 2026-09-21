@@ -434,6 +434,43 @@
         color: white;
     }
 
+    /* ========== SALA (sincronización en vivo) ========== */
+    .sala-panel {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        max-width: 500px;
+        margin: 0 auto 14px auto;
+        background: white;
+        padding: 8px 10px;
+        border-radius: 12px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    }
+    .sala-info { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #495057; }
+    .sala-label { font-weight: 600; }
+    .sala-codigo {
+        font-weight: 800;
+        letter-spacing: 1px;
+        background: #eef4ff;
+        color: #007bff;
+        padding: 3px 8px;
+        border-radius: 6px;
+        font-size: 13px;
+    }
+    .badge-conexion { font-size: 11px; }
+    .btn-sala {
+        border: none;
+        background: linear-gradient(135deg, #8e44ad, #6f42c1);
+        color: white;
+        font-weight: 700;
+        font-size: 11px;
+        padding: 8px 10px;
+        border-radius: 9px;
+        cursor: pointer;
+    }
+    .btn-sala:active { transform: scale(0.95); }
+
 </style>
 </head>
 <body>
@@ -530,6 +567,15 @@
 <!-- ========== VISTA: TÓMBOLA ========== -->
 <div id="vista-tombola" class="vista oculto">
     <div class="tombola-panel">
+        <div class="sala-panel">
+            <div class="sala-info">
+                <span class="sala-label">Sala:</span>
+                <span class="sala-codigo" id="salaCodigo">-----</span>
+                <span class="badge-conexion" id="badgeConexion" title="Conectando...">🔴</span>
+            </div>
+            <button class="btn-sala" onclick="cambiarSala()">🔁 Cambiar sala</button>
+        </div>
+
         <div class="bola-zona">
             <div class="fila-voz">
                 <button class="btn-voz" id="btnVoz" onclick="toggleVoz()" title="Activar/desactivar voz">🔊</button>
@@ -719,25 +765,32 @@
                 return;
             }
 
+            if (!window.fb) {
+                alert("⚠️ Todavía no hay conexión con la nube. Espera un segundo e intenta de nuevo.");
+                return;
+            }
+
             const nombre = prompt("Ponle un nombre a este cartón (ej: 'Loto 15/03', 'Cartón de la suerte'):");
             if (!nombre) return;
 
-            const historial = JSON.parse(localStorage.getItem('lotoHistorial') || '[]');
+            const nuevoRef = window.fb.push(window.fb.ref(window.fb.db, 'cartones'));
             const nuevoItem = {
-                id: Date.now(),
                 nombre: nombre,
-                fecha: new Date().toLocaleString(),
+                fecha: new Date().toLocaleString('es-CL'),
+                creado: Date.now(),
                 cartones: JSON.parse(JSON.stringify(cartones))
             };
-            historial.unshift(nuevoItem);
-            localStorage.setItem('lotoHistorial', JSON.stringify(historial));
 
-            localStorage.setItem('lotoCartonesActual', JSON.stringify({ cartones: cartones, bloqueado: true }));
-            bloqueado = true;
-            actualizarUI();
-            renderizar();
-
-            alert(`✅ Cartón "${nombre}" guardado y bloqueado.`);
+            window.fb.set(nuevoRef, nuevoItem).then(() => {
+                localStorage.setItem('lotoCartonesActual', JSON.stringify({ cartones: cartones, bloqueado: true }));
+                bloqueado = true;
+                actualizarUI();
+                renderizar();
+                alert(`✅ Cartón "${nombre}" guardado en la nube y bloqueado.`);
+            }).catch(err => {
+                console.error(err);
+                alert("⚠️ No se pudo guardar en la nube. Revisa tu conexión a internet e intenta de nuevo.");
+            });
         }
 
         function desbloquearCartones() {
@@ -749,53 +802,72 @@
             }
         }
 
-        // --- HISTORIAL CON MINIATURAS ---
+        // --- HISTORIAL CON MINIATURAS (sincronizado en vivo con Firebase) ---
+        let historialCache = {};
+
+        function suscribirHistorial() {
+            const historialRef = window.fb.ref(window.fb.db, 'cartones');
+            window.fb.onValue(historialRef, (snap) => {
+                historialCache = snap.val() || {};
+                if (document.getElementById('modalHistorial').classList.contains('activo')) {
+                    renderizarListaHistorial();
+                }
+            }, (error) => {
+                console.error(error);
+                mostrarToast('No se pudo leer el historial de la nube.', '⚠️', false);
+            });
+        }
+
         function abrirHistorial() {
-            const modal = document.getElementById('modalHistorial');
+            renderizarListaHistorial();
+            document.getElementById('modalHistorial').classList.add('activo');
+        }
+
+        function renderizarListaHistorial() {
             const lista = document.getElementById('listaHistorial');
-            const historial = JSON.parse(localStorage.getItem('lotoHistorial') || '[]');
+            const entradas = Object.entries(historialCache || {}).sort((a, b) => (b[1].creado || 0) - (a[1].creado || 0));
 
-            if (historial.length === 0) {
+            if (entradas.length === 0) {
                 lista.innerHTML = '<div class="vacio">No hay cartones guardados todavía.</div>';
-            } else {
-                lista.innerHTML = '';
-                historial.forEach(item => {
-                    const div = document.createElement('div');
-                    div.className = 'item-historial';
+                return;
+            }
 
-                    // Generar miniaturas de ambos cartones
-                    let miniaturasHTML = '<div class="miniatura">';
-                    item.cartones.forEach(carton => {
-                        miniaturasHTML += '<div class="mini-carton">';
-                        carton.forEach(num => {
-                            if (num === null) {
-                                miniaturasHTML += '<div class="mini-celda vacia"></div>';
-                            } else {
-                                miniaturasHTML += `<div class="mini-celda">${num}</div>`;
-                            }
-                        });
-                        miniaturasHTML += '</div>';
+            lista.innerHTML = '';
+            entradas.forEach(([id, item]) => {
+                const div = document.createElement('div');
+                div.className = 'item-historial';
+
+                // Generar miniaturas de ambos cartones
+                let miniaturasHTML = '<div class="miniatura">';
+                item.cartones.forEach(carton => {
+                    miniaturasHTML += '<div class="mini-carton">';
+                    carton.forEach(num => {
+                        if (num === null || num === undefined) {
+                            miniaturasHTML += '<div class="mini-celda vacia"></div>';
+                        } else {
+                            miniaturasHTML += `<div class="mini-celda">${num}</div>`;
+                        }
                     });
                     miniaturasHTML += '</div>';
-
-                    div.innerHTML = `
-                        <div class="item-historial-header">
-                            <div class="item-historial-info">
-                                <div class="item-historial-nombre">${item.nombre}</div>
-                                <div class="item-historial-fecha">${item.fecha}</div>
-                            </div>
-                            <button class="btn-mini btn-mini-eliminar" onclick="eliminarDelHistorial(${item.id})">✕</button>
-                        </div>
-                        ${miniaturasHTML}
-                        <div class="item-historial-acciones">
-                            <button class="btn-mini btn-mini-cargar" onclick="cargarDesdeHistorial(${item.id}, false)">📝 Editar</button>
-                            <button class="btn-mini btn-mini-jugar" onclick="cargarDesdeHistorial(${item.id}, true)">🎮 Jugar</button>
-                        </div>
-                    `;
-                    lista.appendChild(div);
                 });
-            }
-            modal.classList.add('activo');
+                miniaturasHTML += '</div>';
+
+                div.innerHTML = `
+                    <div class="item-historial-header">
+                        <div class="item-historial-info">
+                            <div class="item-historial-nombre">${item.nombre}</div>
+                            <div class="item-historial-fecha">${item.fecha}</div>
+                        </div>
+                        <button class="btn-mini btn-mini-eliminar" onclick="eliminarDelHistorial('${id}')">✕</button>
+                    </div>
+                    ${miniaturasHTML}
+                    <div class="item-historial-acciones">
+                        <button class="btn-mini btn-mini-cargar" onclick="cargarDesdeHistorial('${id}', false)">📝 Editar</button>
+                        <button class="btn-mini btn-mini-jugar" onclick="cargarDesdeHistorial('${id}', true)">🎮 Jugar</button>
+                    </div>
+                `;
+                lista.appendChild(div);
+            });
         }
 
         function cerrarHistorial() {
@@ -803,8 +875,7 @@
         }
 
         function cargarDesdeHistorial(id, jugar) {
-            const historial = JSON.parse(localStorage.getItem('lotoHistorial') || '[]');
-            const item = historial.find(i => i.id === id);
+            const item = historialCache[id];
             if (!item) return;
 
             cartones = JSON.parse(JSON.stringify(item.cartones));
@@ -824,11 +895,13 @@
         }
 
         function eliminarDelHistorial(id) {
-            if (!confirm("¿Eliminar este cartón del historial?")) return;
-            let historial = JSON.parse(localStorage.getItem('lotoHistorial') || '[]');
-            historial = historial.filter(i => i.id !== id);
-            localStorage.setItem('lotoHistorial', JSON.stringify(historial));
-            abrirHistorial();
+            if (!confirm("¿Eliminar este cartón guardado de la nube? Se borrará para todos los que usen esta app.")) return;
+            if (!window.fb) { alert("⚠️ Sin conexión con la nube."); return; }
+            window.fb.remove(window.fb.ref(window.fb.db, 'cartones/' + id)).catch(err => {
+                console.error(err);
+                alert("⚠️ No se pudo eliminar. Revisa tu conexión.");
+            });
+            // La lista se actualiza sola gracias al listener en tiempo real.
         }
 
         function nuevoCarton() {
@@ -970,16 +1043,14 @@ function verificarLineasYloto(indexCarton) {
 
         // --- EXPORTAR / IMPORTAR JSON ---
         function exportarJSON() {
-            const historial = localStorage.getItem('lotoHistorial') || '[]';
             const actual = localStorage.getItem('lotoCartonesActual') || '{}';
-            const tombola = localStorage.getItem('lotoTombola') || '{}';
 
             const datosExportar = {
-                version: 2,
+                version: 3,
                 fecha: new Date().toISOString(),
-                historial: JSON.parse(historial),
+                historial: historialCache || {},
                 cartonesActuales: JSON.parse(actual),
-                tombola: JSON.parse(tombola)
+                tombola: { numerosSacados: numerosSacados, sala: salaCodigo }
             };
 
             const blob = new Blob([JSON.stringify(datosExportar, null, 2)], { type: 'application/json' });
@@ -999,6 +1070,12 @@ function verificarLineasYloto(indexCarton) {
             const file = event.target.files[0];
             if (!file) return;
 
+            if (!window.fb) {
+                alert("⚠️ Todavía no hay conexión con la nube. Espera un segundo e intenta de nuevo.");
+                event.target.value = '';
+                return;
+            }
+
             const reader = new FileReader();
             reader.onload = (e) => {
                 try {
@@ -1009,19 +1086,37 @@ function verificarLineasYloto(indexCarton) {
                         return;
                     }
 
-                    const confirmar = confirm(`¿Importar respaldo del ${datos.fecha.slice(0,10)}?\n\nContiene ${datos.historial.length} cartón(es) guardado(s).\n\n⚠️ Se reemplazarán los datos actuales.`);
+                    // Compatibilidad con respaldos viejos (historial era una lista) y nuevos (objeto de Firebase)
+                    const items = Array.isArray(datos.historial) ? datos.historial : Object.values(datos.historial);
+
+                    if (items.length === 0) {
+                        alert("El respaldo no tiene cartones guardados.");
+                        return;
+                    }
+
+                    const confirmar = confirm(`¿Importar respaldo del ${datos.fecha.slice(0,10)}?\n\nContiene ${items.length} cartón(es) guardado(s).\n\nSe subirán a la nube (se suman a los que ya tienes, no se borra nada).`);
                     if (!confirmar) return;
 
-                    localStorage.setItem('lotoHistorial', JSON.stringify(datos.historial));
-                    if (datos.cartonesActuales) {
-                        localStorage.setItem('lotoCartonesActual', JSON.stringify(datos.cartonesActuales));
-                    }
-                    if (datos.tombola) {
-                        localStorage.setItem('lotoTombola', JSON.stringify(datos.tombola));
-                    }
+                    const escrituras = items.map(item => {
+                        const nuevoRef = window.fb.push(window.fb.ref(window.fb.db, 'cartones'));
+                        return window.fb.set(nuevoRef, {
+                            nombre: item.nombre,
+                            fecha: item.fecha,
+                            creado: item.creado || Date.now(),
+                            cartones: item.cartones
+                        });
+                    });
 
-                    alert("✅ Respaldo importado correctamente. Recargando...");
-                    location.reload();
+                    Promise.all(escrituras).then(() => {
+                        if (datos.cartonesActuales) {
+                            localStorage.setItem('lotoCartonesActual', JSON.stringify(datos.cartonesActuales));
+                        }
+                        alert("✅ Respaldo importado a la nube correctamente. Recargando...");
+                        location.reload();
+                    }).catch(err => {
+                        console.error(err);
+                        alert("⚠️ Hubo un problema subiendo algunos cartones. Revisa tu conexión e intenta de nuevo.");
+                    });
 
                 } catch(err) {
                     console.error(err);
@@ -1045,7 +1140,7 @@ function verificarLineasYloto(indexCarton) {
                 vistaTombola.classList.remove('oculto');
                 tabCarton.classList.remove('activo');
                 tabTombola.classList.add('activo');
-                subtitulo.innerText = 'Saca números y sigue el marcador. Marca tus cartones a mano en la otra pestaña.';
+                subtitulo.innerText = 'Saca números y sigue el marcador. Comparte el código de sala para jugar en vivo con otros celulares.';
                 renderTombola();
             } else {
                 vistaTombola.classList.add('oculto');
@@ -1063,20 +1158,63 @@ function verificarLineasYloto(indexCarton) {
         let sacando = false;
 
         function cargarTombola() {
-            const guardado = localStorage.getItem('lotoTombola');
-            if (guardado) {
-                try {
-                    const datos = JSON.parse(guardado);
-                    numerosSacados = datos.numerosSacados || [];
-                } catch(e) { console.error(e); }
-            }
             const vozGuardada = localStorage.getItem('lotoVozActiva');
             if (vozGuardada !== null) vozActiva = vozGuardada === 'true';
             renderTombola();
         }
 
-        function guardarTombola() {
-            localStorage.setItem('lotoTombola', JSON.stringify({ numerosSacados: numerosSacados }));
+        // ---- SALA (sincronización en vivo entre celulares vía Firebase) ----
+        let salaCodigo = '-----';
+        let offTombolaListener = null;
+
+        function generarCodigoSala() {
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // sin 0/O ni 1/I para evitar confusiones
+            let codigo = '';
+            for (let i = 0; i < 5; i++) codigo += chars[Math.floor(Math.random() * chars.length)];
+            return codigo;
+        }
+
+        function inicializarSala(codigo) {
+            salaCodigo = (codigo || generarCodigoSala()).toUpperCase().trim();
+            localStorage.setItem('lotoSalaCodigo', salaCodigo);
+            const spanCodigo = document.getElementById('salaCodigo');
+            if (spanCodigo) spanCodigo.innerText = salaCodigo;
+
+            if (offTombolaListener) { offTombolaListener(); offTombolaListener = null; }
+
+            const tombolaRef = window.fb.ref(window.fb.db, `salas/${salaCodigo}/tombola`);
+            offTombolaListener = window.fb.onValue(tombolaRef, (snap) => {
+                const datos = snap.val() || {};
+                numerosSacados = datos.numerosSacados || [];
+                if (!sacando) renderTombola();
+            }, (error) => {
+                console.error(error);
+                mostrarToast('Sin conexión con la sala. Revisa tu internet.', '⚠️', false);
+            });
+        }
+
+        function cambiarSala() {
+            const propuesta = prompt(`Código de sala actual: ${salaCodigo}\n\nEscribe el código de otra sala para unirte a ella (ej: FAMILIA1), o deja vacío para crear una sala nueva al azar:`);
+            if (propuesta === null) return; // canceló
+            let nuevoCodigo = propuesta.trim().toUpperCase().replace(/[.#$\[\]\/\s]/g, '');
+            if (!nuevoCodigo) nuevoCodigo = generarCodigoSala();
+            inicializarSala(nuevoCodigo);
+            mostrarToast(`Sala cambiada a: ${nuevoCodigo}`, '🔁', false);
+        }
+
+        function suscribirConexion() {
+            const conexionRef = window.fb.ref(window.fb.db, '.info/connected');
+            window.fb.onValue(conexionRef, (snap) => {
+                const badge = document.getElementById('badgeConexion');
+                if (!badge) return;
+                if (snap.val() === true) {
+                    badge.innerText = '🟢';
+                    badge.title = 'Conectado en vivo';
+                } else {
+                    badge.innerText = '🔴';
+                    badge.title = 'Sin conexión';
+                }
+            });
         }
 
         function numerosDisponibles() {
@@ -1152,6 +1290,7 @@ function verificarLineasYloto(indexCarton) {
             if (sacando) return;
             const disponibles = numerosDisponibles();
             if (disponibles.length === 0) return;
+            if (!window.fb) { mostrarToast('Sin conexión con la nube.', '⚠️', false); return; }
 
             sacando = true;
             const btnSacar = document.getElementById('btnSacar');
@@ -1171,38 +1310,69 @@ function verificarLineasYloto(indexCarton) {
                 vueltas++;
                 if (vueltas >= totalVueltas) {
                     clearInterval(intervalo);
-
-                    const numeroFinal = disponibles[Math.floor(Math.random() * disponibles.length)];
-                    numerosSacados.push(numeroFinal);
-                    guardarTombola();
-
-                    bola.classList.remove('girando');
-                    bola.innerText = numeroFinal;
-                    bola.classList.add('pop');
-                    setTimeout(() => bola.classList.remove('pop'), 400);
-
-                    sacando = false;
-                    renderTombola();
-                    hablarNumero(numeroFinal);
+                    confirmarSorteoEnFirebase(bola);
                 }
             }, 55);
         }
 
+        // Usa una transacción atómica: si dos celulares tocan "Sacar" casi al mismo tiempo,
+        // Firebase evita que salga el mismo número dos veces.
+        function confirmarSorteoEnFirebase(bola) {
+            const tombolaRef = window.fb.ref(window.fb.db, `salas/${salaCodigo}/tombola`);
+            window.fb.runTransaction(tombolaRef, (actual) => {
+                const lista = (actual && actual.numerosSacados) ? actual.numerosSacados.slice() : [];
+                const disponiblesReales = [];
+                for (let n = 1; n <= 90; n++) if (!lista.includes(n)) disponiblesReales.push(n);
+                if (disponiblesReales.length === 0) return actual;
+                const elegido = disponiblesReales[Math.floor(Math.random() * disponiblesReales.length)];
+                lista.push(elegido);
+                return { numerosSacados: lista };
+            }).then((resultado) => {
+                sacando = false;
+                bola.classList.remove('girando');
+                const datosFinales = resultado.snapshot.val();
+                const valorFinal = datosFinales && datosFinales.numerosSacados ? datosFinales.numerosSacados[datosFinales.numerosSacados.length - 1] : null;
+                if (valorFinal !== null && valorFinal !== undefined) {
+                    bola.innerText = valorFinal;
+                    bola.classList.add('pop');
+                    setTimeout(() => bola.classList.remove('pop'), 400);
+                    hablarNumero(valorFinal);
+                }
+                renderTombola();
+            }).catch((err) => {
+                console.error(err);
+                sacando = false;
+                bola.classList.remove('girando');
+                mostrarToast('No se pudo sacar el número (sin conexión).', '⚠️', false);
+                renderTombola();
+            });
+        }
+
         function deshacerUltimo() {
             if (sacando || numerosSacados.length === 0) return;
+            if (!window.fb) { mostrarToast('Sin conexión con la nube.', '⚠️', false); return; }
             const ultimo = numerosSacados[numerosSacados.length - 1];
-            if (!confirm(`¿Deshacer el último número sacado (${ultimo})?`)) return;
-            numerosSacados.pop();
-            guardarTombola();
-            renderTombola();
+            if (!confirm(`¿Deshacer el último número sacado (${ultimo}) para todos en la sala ${salaCodigo}?`)) return;
+            const tombolaRef = window.fb.ref(window.fb.db, `salas/${salaCodigo}/tombola`);
+            window.fb.runTransaction(tombolaRef, (actual) => {
+                const lista = (actual && actual.numerosSacados) ? actual.numerosSacados.slice() : [];
+                lista.pop();
+                return { numerosSacados: lista };
+            }).catch(err => {
+                console.error(err);
+                mostrarToast('No se pudo deshacer (sin conexión).', '⚠️', false);
+            });
         }
 
         function reiniciarTombola() {
             if (sacando || numerosSacados.length === 0) return;
-            if (!confirm('¿Reiniciar la tómbola? Se borrará el historial de números sacados.')) return;
-            numerosSacados = [];
-            guardarTombola();
-            renderTombola();
+            if (!window.fb) { mostrarToast('Sin conexión con la nube.', '⚠️', false); return; }
+            if (!confirm(`¿Reiniciar la tómbola de la sala ${salaCodigo} para todos? Se borrará el historial de números sacados.`)) return;
+            const tombolaRef = window.fb.ref(window.fb.db, `salas/${salaCodigo}/tombola`);
+            window.fb.set(tombolaRef, { numerosSacados: [] }).catch(err => {
+                console.error(err);
+                mostrarToast('No se pudo reiniciar (sin conexión).', '⚠️', false);
+            });
         }
 
         function toggleVoz() {
@@ -1231,6 +1401,40 @@ function verificarLineasYloto(indexCarton) {
         cargarInicial();
         cargarTombola();
         cambiarVista(localStorage.getItem('lotoVistaActual') || 'carton');
+
+        // Todo lo que depende de Firebase (historial en la nube, sala en vivo) espera
+        // a que el módulo de abajo termine de inicializar la conexión.
+        window.addEventListener('firebase-listo', () => {
+            suscribirHistorial();
+            suscribirConexion();
+            inicializarSala(localStorage.getItem('lotoSalaCodigo') || generarCodigoSala());
+        });
+    </script>
+
+    <!-- Conexión con Firebase (Realtime Database): historial de cartones y tómbola en vivo -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
+        import {
+            getDatabase, ref, set, get, push, onValue, off, remove, runTransaction
+        } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAqLu7YlbDn2AkKXjihLVU8bzy4Fb61V7c",
+            authDomain: "juegos-online-99b20.firebaseapp.com",
+            databaseURL: "https://juegos-online-99b20-default-rtdb.firebaseio.com",
+            projectId: "juegos-online-99b20",
+            storageBucket: "juegos-online-99b20.firebasestorage.app",
+            messagingSenderId: "942532179041",
+            appId: "1:942532179041:web:eee067b965e74b4a26a620"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // Se expone en window para que el script clásico de arriba (con los onclick="...")
+        // pueda usar Firebase sin tener que convertir todo el archivo a módulos.
+        window.fb = { db, ref, set, get, push, onValue, off, remove, runTransaction };
+        window.dispatchEvent(new Event('firebase-listo'));
     </script>
 </body>
 </html>
