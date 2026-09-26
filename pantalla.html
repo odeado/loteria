@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loto Digital - Pantalla</title>
+    <link rel="stylesheet" href="css/pantalla.css">
+</head>
+<body>
+    <div id="formSala" class="form-sala" style="display:none;">
+        <h1>🎰 Loto Digital</h1>
+        <p>Escribe el código de la sala para mostrar los números en esta pantalla:</p>
+        <input type="text" id="inputSalaPantalla" maxlength="10" placeholder="Ej: K7XQ2">
+        <button id="btnEntrarSala">Entrar</button>
+    </div>
+
+    <div id="avisoConectando" class="form-sala" style="display:none;">
+        <h1>🎰 Loto Digital</h1>
+        <p id="textoConectando">Conectando con la sala...</p>
+    </div>
+
+    <div id="pantallaTombola" style="display:none;">
+        <div class="encabezado-pantalla">
+            <span>Sala: <strong id="salaCodigoPantalla">-----</strong></span>
+            <span>Salidos: <strong id="statSalidosPantalla">0</strong> · Quedan: <strong id="statRestantesPantalla">90</strong></span>
+        </div>
+        <div class="bola-pantalla bola-vacia" id="bolaPantalla">?</div>
+        <div class="recientes-pantalla" id="recientesPantalla"></div>
+        <div class="tablero-pantalla" id="tableroPantalla"></div>
+    </div>
+
+    <script type="module" src="js/firebase-config.js"></script>
+    <script src="js/pantalla.js"></script>
+</body>
+</html>

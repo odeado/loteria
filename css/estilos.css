@@ -1,0 +1,504 @@
+/* ===================================================================
+   LOTO DIGITAL — Estilos
+   Cartón (editor de cartones) + Tómbola (sorteo de números en vivo)
+   =================================================================== */
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+    background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
+    text-align: center;
+    padding: 10px;
+    margin: 0;
+    min-height: 100vh;
+}
+h1 { color: #2c3e50; font-size: 19px; margin: 8px 0 3px 0; font-weight: 700; }
+.subtitle { color: #6c757d; font-size: 11px; margin-bottom: 12px; }
+
+/* ========== PESTAÑAS ========== */
+.tabs-nav {
+    display: flex;
+    gap: 6px;
+    max-width: 500px;
+    margin: 0 auto 14px auto;
+    background: white;
+    padding: 5px;
+    border-radius: 12px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+.tab-btn {
+    flex: 1;
+    border: none;
+    background: transparent;
+    padding: 10px 6px;
+    border-radius: 9px;
+    font-weight: 700;
+    font-size: 13px;
+    color: #6c757d;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+.tab-btn.activo {
+    background: linear-gradient(135deg, #3498db, #007bff);
+    color: white;
+    box-shadow: 0 2px 6px rgba(0,123,255,0.3);
+}
+.vista.oculto { display: none; }
+.seccion-titulo {
+    font-size: 12px;
+    color: #495057;
+    font-weight: 700;
+    text-align: left;
+    max-width: 500px;
+    margin: 4px auto 6px auto;
+    padding-left: 2px;
+}
+
+/* ========== BARRA DE ACCIONES PRINCIPAL ========== */
+.barra-acciones {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    max-width: 500px;
+    margin: 0 auto 8px auto;
+}
+
+.btn-accion {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 8px 4px;
+    border: none;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    color: white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    line-height: 1.1;
+}
+.btn-accion .icono { font-size: 18px; line-height: 1; }
+.btn-accion:active { transform: scale(0.94); box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+
+.btn-historial { background: linear-gradient(135deg, #8e44ad, #6f42c1); }
+.btn-nuevo { background: linear-gradient(135deg, #3498db, #007bff); }
+.btn-exportar { background: linear-gradient(135deg, #f39c12, #e67e22); }
+.btn-importar { background: linear-gradient(135deg, #16a085, #20c997); }
+
+/* ========== BARRA DE EDICIÓN ========== */
+.barra-edicion {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    max-width: 500px;
+    margin: 0 auto 10px auto;
+}
+
+.btn-edicion {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 8px 4px;
+    border: none;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    color: white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    line-height: 1.1;
+}
+.btn-edicion .icono { font-size: 18px; line-height: 1; }
+.btn-edicion:active { transform: scale(0.94); }
+.btn-edicion:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.btn-borrar { background: linear-gradient(135deg, #f39c12, #d68910); }
+.btn-borrar.activo { background: linear-gradient(135deg, #e74c3c, #c0392b); animation: pulso 1s infinite; }
+.btn-guardar { background: linear-gradient(135deg, #27ae60, #1e8449); }
+.btn-editar { background: linear-gradient(135deg, #17a2b8, #138496); }
+.btn-limpiar { background: linear-gradient(135deg, #e74c3c, #c0392b); }
+
+@keyframes pulso {
+    0%, 100% { box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    50% { box-shadow: 0 0 0 6px rgba(231, 76, 60, 0.3); }
+}
+
+/* Info guardado */
+.info-guardado {
+    background-color: #d4edda;
+    color: #155724;
+    padding: 8px 12px;
+    border-radius: 8px;
+    margin: 10px auto;
+    max-width: 500px;
+    font-size: 12px;
+    font-weight: 600;
+    display: none;
+    border-left: 4px solid #28a745;
+    text-align: left;
+}
+
+/* ========== CARTONES ========== */
+.carton {
+    background: linear-gradient(145deg, #2a2a2a, #1a1a1a);
+    padding: 10px;
+    border-radius: 12px;
+    display: inline-block;
+    margin: 8px auto;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    width: 100%;
+    max-width: 500px;
+    position: relative;
+}
+.carton.bloqueado { border: 2px solid #28a745; }
+.carton-title {
+    color: white;
+    margin-bottom: 8px;
+    font-weight: 700;
+    font-size: 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 4px;
+}
+.badge-bloqueado {
+    background: linear-gradient(135deg, #27ae60, #1e8449);
+    color: white;
+    padding: 3px 8px;
+    border-radius: 10px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+.grid { display: grid; grid-template-columns: repeat(9, 1fr); gap: 4px; justify-content: center; }
+.celda {
+    aspect-ratio: 3 / 4;
+    background-color: #fcfcfc;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 15px;
+    cursor: pointer;
+    user-select: none;
+    border: 2px solid #ccc;
+    transition: all 0.15s;
+    padding: 0;
+    min-width: 0;
+}
+.celda.vacia { background-color: #333; border: 2px solid #444; color: #666; font-size: 18px; }
+.celda.vacia.bloqueada { cursor: not-allowed; opacity: 0.6; }
+.celda.marcada { background: linear-gradient(135deg, #27ae60, #1e8449); color: white; border-color: #145a32; }
+.celda.editando { background-color: #ffc107; border-color: #ff9800; }
+.celda.eliminando { background-color: #dc3545; color: white; border-color: #a71d2a; }
+.celda.con-numero.bloqueada { cursor: pointer; }
+
+.info { font-size: 10px; color: #888; margin-top: 12px; padding: 5px; }
+
+/* ========== TECLADO ========== */
+.overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.75); z-index: 1000; justify-content: center; align-items: center; }
+.overlay.activo { display: flex; }
+.teclado { background-color: white; border-radius: 15px; padding: 15px; width: 90%; max-width: 320px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+.teclado h3 { margin: 0 0 10px 0; color: #333; font-size: 16px; }
+.teclado .display { background-color: #f0f0f0; border-radius: 8px; padding: 15px; font-size: 32px; font-weight: bold; color: #333; margin-bottom: 10px; min-height: 60px; display: flex; align-items: center; justify-content: center; border: 2px solid #ddd; }
+.teclado .botones-num { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.teclado button { padding: 15px; font-size: 20px; font-weight: bold; border: none; border-radius: 8px; background-color: #e9ecef; cursor: pointer; }
+.teclado button:active { background-color: #ced4da; }
+.teclado .acciones { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+.teclado .btn-cancelar { background-color: #dc3545; color: white; }
+.teclado .btn-aceptar { background-color: #28a745; color: white; }
+
+/* ========== HISTORIAL ========== */
+.modal-historial { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center; }
+.modal-historial.activo { display: flex; }
+.historial-contenido { background-color: white; border-radius: 15px; padding: 18px; width: 95%; max-width: 420px; max-height: 85vh; overflow-y: auto; }
+.historial-contenido h3 { margin-top: 0; color: #333; font-size: 17px; }
+.item-historial { background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 10px; padding: 10px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 8px; }
+.item-historial-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.item-historial-info { text-align: left; flex: 1; }
+.item-historial-nombre { font-weight: 700; color: #333; font-size: 13px; }
+.item-historial-fecha { font-size: 10px; color: #888; }
+
+.miniatura { display: flex; flex-direction: column; gap: 4px; }
+.mini-carton { display: grid; grid-template-columns: repeat(9, 1fr); gap: 2px; background-color: #222; padding: 4px; border-radius: 5px; }
+.mini-celda { aspect-ratio: 1 / 1; background-color: #fcfcfc; border-radius: 2px; display: flex; align-items: center; justify-content: center; font-size: 7px; font-weight: 700; color: #333; }
+.mini-celda.vacia { background-color: #444; }
+
+.item-historial-acciones { display: flex; gap: 5px; }
+.btn-mini { padding: 8px 12px; border: none; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: 700; flex: 1; }
+.btn-mini-cargar { background-color: #17a2b8; color: white; }
+.btn-mini-jugar { background-color: #28a745; color: white; }
+.btn-mini-eliminar { background-color: #dc3545; color: white; flex: 0; padding: 8px 12px; }
+.vacio { color: #888; font-size: 14px; padding: 20px; }
+
+/* ========== TOAST ========== */
+.toast-container {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+    width: 90%;
+    max-width: 400px;
+}
+
+.toast {
+    background: linear-gradient(135deg, #27ae60, #1e8449);
+    color: white;
+    padding: 14px 18px;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 14px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+    animation: toastEntrar 0.4s ease-out, toastSalir 0.4s ease-in 2.6s forwards;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-align: left;
+}
+
+.toast.loto {
+    background: linear-gradient(135deg, #f39c12, #d68910);
+    font-size: 16px;
+    padding: 16px 20px;
+    box-shadow: 0 6px 25px rgba(243, 156, 18, 0.5);
+}
+
+.toast .toast-icono {
+    font-size: 24px;
+    line-height: 1;
+}
+
+.toast .toast-texto {
+    flex: 1;
+    line-height: 1.3;
+}
+
+@keyframes toastEntrar {
+    from { opacity: 0; transform: translateY(-30px) scale(0.9); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes toastSalir {
+    from { opacity: 1; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(-30px); }
+}
+
+/* ========== TÓMBOLA ========== */
+.tombola-panel { max-width: 500px; margin: 0 auto; }
+
+.bola-zona {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    margin: 4px auto 16px auto;
+}
+.fila-voz { width: 100%; max-width: 500px; display: flex; justify-content: flex-end; }
+.btn-voz {
+    border: none;
+    background: white;
+    border-radius: 50%;
+    width: 34px;
+    height: 34px;
+    font-size: 16px;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+}
+.btn-voz:active { transform: scale(0.92); }
+
+.bola {
+    width: 112px;
+    height: 112px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #ffe082, #f39c12 60%, #d68910);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 42px;
+    font-weight: 800;
+    color: #7a3e00;
+    box-shadow: 0 8px 20px rgba(243,156,18,0.45), inset 0 -6px 10px rgba(0,0,0,0.15);
+    border: 4px solid #fff;
+}
+.bola.bola-vacia {
+    background: radial-gradient(circle at 35% 30%, #f1f1f1, #ccc 60%, #999);
+    color: #777;
+    font-size: 20px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.15), inset 0 -6px 10px rgba(0,0,0,0.1);
+}
+.bola.girando { animation: girarBola 0.12s linear infinite; }
+@keyframes girarBola {
+    0% { transform: rotate(0deg) scale(1); }
+    50% { transform: rotate(7deg) scale(1.03); }
+    100% { transform: rotate(0deg) scale(1); }
+}
+.bola.pop { animation: popBola 0.4s ease-out; }
+@keyframes popBola {
+    0% { transform: scale(0.6); }
+    60% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+}
+
+.stats-tombola { display: flex; justify-content: center; gap: 18px; font-size: 12px; color: #495057; font-weight: 600; }
+
+.btns-tombola {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr;
+    gap: 6px;
+    max-width: 500px;
+    margin: 0 auto 16px auto;
+}
+.btn-sacar, .btn-deshacer, .btn-reiniciar {
+    border: none;
+    border-radius: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    color: white;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+    transition: all 0.15s;
+}
+.btn-sacar { background: linear-gradient(135deg, #27ae60, #1e8449); padding: 14px 6px; font-size: 14px; }
+.btn-deshacer { background: linear-gradient(135deg, #95a5a6, #7f8c8d); font-size: 11px; padding: 8px 4px; }
+.btn-reiniciar { background: linear-gradient(135deg, #e74c3c, #c0392b); font-size: 11px; padding: 8px 4px; }
+.btn-sacar:active, .btn-deshacer:active, .btn-reiniciar:active { transform: scale(0.95); }
+.btn-sacar:disabled, .btn-deshacer:disabled, .btn-reiniciar:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.tablero-tombola {
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    gap: 4px;
+    max-width: 500px;
+    margin: 0 auto 18px auto;
+    background: #1a1a1a;
+    padding: 8px;
+    border-radius: 12px;
+}
+.num-tombola {
+    aspect-ratio: 1 / 1;
+    background-color: #fcfcfc;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: #555;
+    border: 2px solid #ddd;
+    transition: all 0.15s;
+}
+.num-tombola.pintado { background: linear-gradient(135deg, #27ae60, #1e8449); color: white; border-color: #145a32; }
+.num-tombola.ultimo { outline: 3px solid #f39c12; box-shadow: 0 0 0 2px #fff inset; }
+
+.lista-salidos {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    max-width: 500px;
+    margin: 0 auto 24px auto;
+    justify-content: center;
+}
+.chip-salido {
+    background: white;
+    border: 2px solid #27ae60;
+    color: #1e8449;
+    font-weight: 800;
+    font-size: 12px;
+    padding: 6px 4px;
+    border-radius: 8px;
+    min-width: 30px;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+.chip-salido.reciente {
+    background: linear-gradient(135deg, #f39c12, #d68910);
+    border-color: #d68910;
+    color: white;
+}
+
+/* ========== SALA (sincronización en vivo) ========== */
+.sala-panel {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    max-width: 500px;
+    margin: 0 auto 14px auto;
+    background: white;
+    padding: 8px 10px;
+    border-radius: 12px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+.sala-info { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #495057; }
+.sala-label { font-weight: 600; }
+.sala-codigo {
+    font-weight: 800;
+    letter-spacing: 1px;
+    background: #eef4ff;
+    color: #007bff;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+}
+.badge-conexion { font-size: 11px; }
+.btn-sala {
+    border: none;
+    background: linear-gradient(135deg, #8e44ad, #6f42c1);
+    color: white;
+    font-weight: 700;
+    font-size: 11px;
+    padding: 8px 10px;
+    border-radius: 9px;
+    cursor: pointer;
+}
+.btn-sala:active { transform: scale(0.95); }
+
+.btn-ver-partidas {
+    display: block;
+    width: 100%;
+    max-width: 500px;
+    margin: 0 auto 16px auto;
+    border: none;
+    background: white;
+    color: #8e44ad;
+    font-weight: 700;
+    font-size: 12px;
+    padding: 10px;
+    border-radius: 10px;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+.btn-ver-partidas:active { transform: scale(0.98); }
+
+/* ========== PARTIDAS ANTERIORES ========== */
+.item-partida { background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 10px; padding: 10px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 8px; }
+.item-partida-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.item-partida-info { text-align: left; flex: 1; }
+.item-partida-titulo { font-weight: 700; color: #333; font-size: 13px; }
+.item-partida-fecha { font-size: 10px; color: #888; }
+.chips-partida { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip-mini {
+    background: #eef4ff;
+    color: #007bff;
+    font-weight: 700;
+    font-size: 10px;
+    padding: 3px 6px;
+    border-radius: 6px;
+}
