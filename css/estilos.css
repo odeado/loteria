@@ -61,7 +61,7 @@ h1 { color: #2c3e50; font-size: 19px; margin: 8px 0 3px 0; font-weight: 700; }
 /* ========== BARRA DE ACCIONES PRINCIPAL ========== */
 .barra-acciones {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: 6px;
     max-width: 500px;
     margin: 0 auto 8px auto;
@@ -89,6 +89,7 @@ h1 { color: #2c3e50; font-size: 19px; margin: 8px 0 3px 0; font-weight: 700; }
 
 .btn-historial { background: linear-gradient(135deg, #8e44ad, #6f42c1); }
 .btn-nuevo { background: linear-gradient(135deg, #3498db, #007bff); }
+.btn-aleatorio { background: linear-gradient(135deg, #6c5ce7, #5f3dc4); }
 .btn-exportar { background: linear-gradient(135deg, #f39c12, #e67e22); }
 .btn-importar { background: linear-gradient(135deg, #16a085, #20c997); }
 
