@@ -8,6 +8,39 @@
 let historialCache = {};
 let historialCargado = false; // distingue "todavía cargando" de "no hay nada guardado"
 
+// --- Normalización de cartones guardados en Firebase ---
+// Firebase Realtime Database borra los valores "null" al guardar (los trata
+// como "eliminar este campo"). Como un cartón es un arreglo de 27 celdas y
+// casi siempre varias quedan vacías (null), al guardarlo tal cual Firebase
+// lo convierte en un objeto disperso (ej: {2:21, 4:40, ...}) en vez de un
+// arreglo. Para evitarlo, antes de guardar reemplazamos cada null por 0
+// (ninguna celda real usa 0, los números van de 1 a 90), y al leer lo
+// volvemos a convertir en un arreglo real de 27 posiciones con null donde
+// corresponde. Así funciona tanto con cartones nuevos como con los que ya
+// hayan quedado guardados como objeto disperso antes de este arreglo.
+function prepararCartonParaGuardar(carton) {
+    return carton.map(n => (n === null || n === undefined) ? 0 : n);
+}
+
+function normalizarCarton(carton) {
+    const resultado = new Array(27).fill(null);
+    if (Array.isArray(carton)) {
+        for (let i = 0; i < 27; i++) {
+            const v = carton[i];
+            resultado[i] = (v === null || v === undefined || v === 0) ? null : v;
+        }
+    } else if (carton && typeof carton === 'object') {
+        Object.keys(carton).forEach(k => {
+            const i = parseInt(k, 10);
+            if (!isNaN(i) && i >= 0 && i < 27) {
+                const v = carton[k];
+                resultado[i] = (v === null || v === undefined || v === 0) ? null : v;
+            }
+        });
+    }
+    return resultado;
+}
+
 function guardarEnHistorial() {
     const vacios1 = cartones[0].filter(n => n === null).length;
     const vacios2 = cartones[1].filter(n => n === null).length;
@@ -30,7 +63,7 @@ function guardarEnHistorial() {
         nombre: nombre,
         fecha: new Date().toLocaleString('es-CL'),
         creado: Date.now(),
-        cartones: JSON.parse(JSON.stringify(cartones))
+        cartones: cartones.map(prepararCartonParaGuardar)
     };
 
     window.fb.set(nuevoRef, nuevoItem).then(() => {
@@ -85,7 +118,8 @@ function renderizarListaHistorial() {
         div.className = 'item-historial';
 
         let miniaturasHTML = '<div class="miniatura">';
-        item.cartones.forEach(carton => {
+        item.cartones.forEach(cartonCrudo => {
+            const carton = normalizarCarton(cartonCrudo);
             miniaturasHTML += '<div class="mini-carton">';
             carton.forEach(num => {
                 if (num === null || num === undefined) {
@@ -124,7 +158,7 @@ function cargarDesdeHistorial(id, jugar) {
     const item = historialCache[id];
     if (!item) return;
 
-    cartones = JSON.parse(JSON.stringify(item.cartones));
+    cartones = item.cartones.map(normalizarCarton);
     bloqueado = jugar; // Si "jugar" es true, se bloquea. Si es false, se desbloquea para editar.
 
     localStorage.setItem('lotoCartonesActual', JSON.stringify({ cartones: cartones, bloqueado: bloqueado }));
@@ -212,7 +246,7 @@ function importarJSON(event) {
                     nombre: item.nombre,
                     fecha: item.fecha,
                     creado: item.creado || Date.now(),
-                    cartones: item.cartones
+                    cartones: item.cartones.map(c => prepararCartonParaGuardar(normalizarCarton(c)))
                 });
             });
 

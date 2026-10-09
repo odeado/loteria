@@ -181,6 +181,94 @@ function nuevoCarton() {
     renderizar();
 }
 
+// --- CARTONES ALEATORIOS ---
+// Genera un cartón válido de lotería/bingo: 3 filas x 9 columnas (27 celdas),
+// con 5 números por fila (4 celdas en blanco) y cada columna respetando su
+// rango clásico (1-9, 10-19, 20-29 ... 80-90), sin repetir números dentro
+// del cartón. Los números dentro de una misma columna quedan en orden
+// ascendente de arriba hacia abajo, como en un cartón real.
+
+function rangoColumna(col) {
+    if (col === 0) return [1, 9];
+    if (col === 8) return [80, 90];
+    const inicio = col * 10;
+    return [inicio, inicio + 9];
+}
+
+function generarPatronFilas() {
+    const COLUMNAS = 9;
+    const filas = [new Set(), new Set(), new Set()];
+
+    // Cada fila elige al azar 5 de las 9 columnas para tener número.
+    for (let f = 0; f < 3; f++) {
+        const indices = [...Array(COLUMNAS).keys()];
+        for (let i = indices.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [indices[i], indices[j]] = [indices[j], indices[i]];
+        }
+        indices.slice(0, 5).forEach(c => filas[f].add(c));
+    }
+
+    // Si alguna columna quedó sin ningún número en las 3 filas, le "prestamos"
+    // un número de otra columna que tenga más de una fila ocupada, para que
+    // los números queden repartidos por todo el cartón.
+    const contarColumna = (c) => filas.reduce((acc, fila) => acc + (fila.has(c) ? 1 : 0), 0);
+
+    for (let c = 0; c < COLUMNAS; c++) {
+        if (contarColumna(c) > 0) continue;
+        for (let f = 0; f < 3 && contarColumna(c) === 0; f++) {
+            for (const c2 of [...filas[f]]) {
+                if (contarColumna(c2) > 1) {
+                    filas[f].delete(c2);
+                    filas[f].add(c);
+                    break;
+                }
+            }
+        }
+    }
+
+    return filas;
+}
+
+function generarNumerosCartonAleatorio() {
+    const filas = generarPatronFilas();
+    const carton = new Array(27).fill(null);
+
+    for (let col = 0; col < 9; col++) {
+        const filasConNumero = [0, 1, 2].filter(f => filas[f].has(col));
+        if (filasConNumero.length === 0) continue;
+
+        const [min, max] = rangoColumna(col);
+        const disponibles = [];
+        for (let n = min; n <= max; n++) disponibles.push(n);
+        for (let i = disponibles.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [disponibles[i], disponibles[j]] = [disponibles[j], disponibles[i]];
+        }
+        const elegidos = disponibles.slice(0, filasConNumero.length).sort((a, b) => a - b);
+
+        filasConNumero.forEach((f, i) => {
+            carton[f * 9 + col] = elegidos[i];
+        });
+    }
+
+    return carton;
+}
+
+function generarCartonesAleatorios() {
+    if (!confirm("¿Generar cartones aleatorios? Se reemplazarán los números actuales si no están guardados.")) return;
+
+    cartones = [generarNumerosCartonAleatorio(), generarNumerosCartonAleatorio()];
+    bloqueado = false;
+    modoBorrar = false;
+    document.getElementById('btnBorrar').classList.remove('activo');
+    document.getElementById('btnBorrar').innerHTML = '🗑️ Borrar';
+    localStorage.setItem('lotoCartonesActual', JSON.stringify({ cartones: cartones, bloqueado: false }));
+    actualizarUI();
+    renderizar();
+    mostrarToast('Cartones aleatorios generados', '🎲', false);
+}
+
 function limpiarTodo() {
     if (bloqueado) { alert("Primero presiona '🔓 Editar' para limpiar."); return; }
     if (confirm("¿Borrar TODOS los números de ambos cartones?")) {
